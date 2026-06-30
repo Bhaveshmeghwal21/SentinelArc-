@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Client-facing statistics dashboard, Stripe billing integration with usage metering, and client settings/threshold configuration UI. This covers the business-facing features: aggregate stats showing the system is working (flags over time, response times, false-positive rates), billing tied to conversation volume, and the self-service configuration for thresholds.",
+  "status": "pending",
+  "steps": [
+    "Create src/app/(dashboard)/page.tsx (overview/stats dashboard): Client-facing statistics page showing aggregate metrics. Cards for: total conversations monitored (period), flags raised (by category), average response time (flag to action), false positive rate trend, crisis routes triggered, conversations blocked. Charts: flags over time (line chart, last 30 days), category breakdown (pie/donut chart), response time trend. Use recharts or a lightweight charting library compatible with shadcn/ui.",
+    "Create src/app/api/v1/stats/route.ts: API endpoint returning aggregate statistics for the authenticated client. Metrics: conversation_count, turn_count, flag_count (by category and severity), action_count (by type), average_response_time_ms, false_positive_rate, crisis_route_count. Supports date range filtering. All queries are tenant-isolated.",
+    "Create src/app/(dashboard)/settings/page.tsx: Client settings page with tabs for: General (company name, webhook URL for action notifications), Thresholds (per-category threshold configuration with sliders showing current values vs system minimums, clear indication that crisis routing thresholds cannot be lowered below system floor), Team (invite/manage team members with roles), API Keys (list/create/revoke).",
+    "Create src/app/api/v1/settings/thresholds/route.ts: GET/PUT endpoint for threshold configuration. PUT validates that no threshold is set below system minimum (enforced server-side, not just UI). Returns the effective threshold configuration including which are at system minimum vs client-configured.",
+    "Create src/lib/billing/stripe.ts: Stripe integration module. Functions: createCustomer (on client signup), createSubscription (with tiered pricing: Starter $199/mo up to 10K conversations, Growth $499/mo up to 50K, Enterprise $999/mo up to 250K), reportUsage (meter conversation/turn counts), getUsage (current period usage), handleWebhook (subscription changes, payment failures). Use Stripe's usage-based billing with metered billing items.",
+    "Create src/app/api/v1/billing/webhook/route.ts: Stripe webhook handler for subscription events (created, updated, canceled, payment_failed). Updates client record with current plan and status.",
+    "Create src/app/(dashboard)/billing/page.tsx: Billing page showing current plan, usage this period (conversations and turns with visual meter toward limit), next invoice estimate, plan upgrade/downgrade options, payment method management (Stripe Customer Portal link).",
+    "Create src/app/api/v1/billing/route.ts: GET current billing status, POST create/update subscription, GET /usage for current period metering.",
+    "Create src/lib/billing/usage-tracker.ts: Usage tracking that increments conversation and turn counts per client per billing period. Called from the ingestion pipeline. Includes overage detection and alerting (when client approaches plan limit).",
+    "Write tests: tests/lib/billing/stripe.test.ts (subscription creation, usage reporting, plan limits, webhook handling with mocked Stripe API), tests/api/stats.test.ts (correct aggregation, tenant isolation of stats, date range filtering), tests/api/settings.test.ts (threshold update respects system minimums, RBAC enforcement - only ADMIN can change thresholds)."
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with zero errors",
+    "npm test passes all billing, stats, and settings tests",
+    "Stats API returns correct aggregated data isolated per tenant",
+    "Threshold configuration UI and API enforce system minimum floors",
+    "Stripe webhook handler correctly processes subscription lifecycle events",
+    "Usage tracking increments correctly and detects plan limit approach",
+    "Billing page shows current usage relative to plan limit",
+    "npm run build completes successfully"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm test -- --testPathPattern='billing|stats|settings'",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

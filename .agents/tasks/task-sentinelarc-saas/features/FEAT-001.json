@@ -1,0 +1,42 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Project scaffolding, Prisma schema, auth system, multi-tenant RBAC, API key issuance, and ingestion API. This establishes the entire foundation: Next.js App Router project with TypeScript, Prisma schema covering the full domain model (clients, users, conversations, turns, scores, flags, actions, audit logs, review decisions, labeled dataset entries), NextAuth-based session auth with RBAC (Admin/Reviewer roles), API key generation and validation for ingestion, and the real-time conversation ingestion endpoint that client apps integrate against.",
+  "status": "in_progress",
+  "steps": [
+    "Initialize Next.js 14 App Router project with TypeScript in the workspace root. Configure tsconfig.json with strict mode. Add dependencies: next, react, react-dom, typescript, @types/react, @types/node, prisma, @prisma/client, next-auth, @auth/prisma-adapter, bcryptjs, uuid, zod, bullmq, ioredis, @tanstack/react-query, stripe, tailwindcss, postcss, autoprefixer, class-variance-authority, clsx, tailwind-merge, lucide-react, @radix-ui/react-slot.",
+    "Add dev dependencies: jest, @jest/globals, ts-jest, @types/jest, fast-check, eslint, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint-config-next, prettier.",
+    "Configure tailwind.config.ts with shadcn/ui-compatible setup. Add global CSS. Create src/lib/utils.ts with cn() helper.",
+    "Create comprehensive Prisma schema at prisma/schema.prisma covering all entities: Client (B2B customer with plan tier, settings), User (team members with role enum: ADMIN, REVIEWER), ApiKey (hashed keys tied to clients), Conversation (client + end-user identifier), ConversationTurn (message content, sender, timestamp), TurnScore (scores per category: self_harm, sexual_content, age_signal, emotional_intensity, dependency_language, romantic_escalation), ArcScore (rolling conversation-level scores with trend indicators), Flag (turn or arc level, category, severity, threshold that triggered it), Action (type: SOFT_FLAG, HARD_BLOCK, CRISIS_ROUTE, with timestamp and metadata), CrisisRouteEvent (timestamp, resource shown, latency_ms, success boolean), ReviewItem (linked to flag, assigned reviewer, status: PENDING/IN_REVIEW/RESOLVED), ReviewDecision (true_positive/false_positive/escalate, notes, reviewer, timestamp), AuditLogEntry (immutable, covers all state changes with actor, action, payload, timestamp, client_id), LabeledDataEntry (turn content, scores at time of flag, reviewer decision, version), BillingUsage (client, period, conversation_count, turn_count). Use appropriate indexes, relations, and constraints. Add @@map for table names. Ensure client_id is on every data table for multi-tenant isolation.",
+    "Set up NextAuth configuration in src/lib/auth.ts with PrismaAdapter, credentials provider (email/password), session strategy JWT, role included in session/token. Create src/app/api/auth/[...nextauth]/route.ts.",
+    "Create API key generation and validation utilities in src/lib/api-keys.ts: generateApiKey() produces a prefixed key (sa_live_xxx), hashApiKey() for storage, validateApiKey() middleware that extracts client context from the key. Keys are stored hashed with a prefix for lookup.",
+    "Create the ingestion API route at src/app/api/v1/ingest/route.ts: POST endpoint accepting conversation turns with Zod validation. Schema: { conversation_id: string, end_user_id: string, turn: { role: 'user'|'companion', content: string, timestamp: ISO string, metadata?: object } }. Authenticates via API key header (X-API-Key). On valid ingestion: stores the turn, enqueues scoring job to BullMQ, returns 202 Accepted with turn_id. Includes rate limiting headers.",
+    "Create src/lib/queue.ts with BullMQ queue configuration for scoring jobs. Define job types: SCORE_TURN, SCORE_ARC. Include retry and backoff configuration.",
+    "Create RBAC middleware in src/lib/rbac.ts: withRole() wrapper that checks session role against required role. Create data isolation middleware in src/lib/tenant.ts: withTenant() that injects client_id filter into all Prisma queries for the request context.",
+    "Create src/app/api/v1/clients/route.ts for client registration (POST - create new client account), src/app/api/v1/clients/[clientId]/api-keys/route.ts for API key management (POST - generate new key, GET - list active keys, DELETE - revoke key).",
+    "Create src/app/api/v1/conversations/route.ts (GET - list conversations for authenticated client) and src/app/api/v1/conversations/[conversationId]/route.ts (GET - conversation detail with turns and scores).",
+    "Write comprehensive tests in tests/: tests/lib/api-keys.test.ts (generation, hashing, validation), tests/api/ingest.test.ts (valid ingestion, invalid payloads, missing/invalid API key, rate limiting), tests/lib/rbac.test.ts (role enforcement), tests/lib/tenant.test.ts (data isolation - one client cannot access another's data). Use Jest with mocked Prisma client and mocked BullMQ.",
+    "Add npm scripts to package.json: dev, build, start, lint, typecheck (tsc --noEmit), test (jest), test:watch, db:generate (prisma generate), db:migrate (prisma migrate dev), db:push (prisma db push)."
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with zero errors",
+    "npm run lint passes",
+    "npm test passes all tests in tests/lib/api-keys.test.ts, tests/api/ingest.test.ts, tests/lib/rbac.test.ts, tests/lib/tenant.test.ts",
+    "npm run build completes successfully",
+    "npx prisma generate succeeds (validates schema)",
+    "Prisma schema includes all entities listed with proper relations and indexes",
+    "Ingestion endpoint validates input with Zod and returns appropriate error responses for malformed requests",
+    "API key authentication rejects requests without valid keys",
+    "RBAC tests confirm Admin can access all routes, Reviewer has limited access",
+    "Data isolation tests confirm cross-tenant access is impossible"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm test -- --coverage",
+    "npm run build",
+    "npx prisma generate"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

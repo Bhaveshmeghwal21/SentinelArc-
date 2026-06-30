@@ -1,0 +1,27 @@
+{
+  "project_type": "Next.js App Router SaaS with separate worker process",
+  "language": "TypeScript",
+  "build_system": "npm with Next.js, separate worker via ts-node/tsx",
+  "test_framework": "Jest for unit/integration tests, with property-based testing via fast-check",
+  "build_command": "npm run build",
+  "test_command": "npm test",
+  "verification_instructions": "1. npm run lint, 2. npm run typecheck, 3. npm test, 4. npm run build",
+  "snapshot_or_generated_files": "Prisma client generated via npx prisma generate; prisma/migrations/ checked in",
+  "setup_instructions": "npm install && npx prisma generate && npm run build",
+  "environment_constraints": "OPEN_INTERNET - full access to npm, APIs, etc. Node.js 22 available. PostgreSQL not pre-installed but Prisma schema can be validated without DB. Redis not pre-installed but BullMQ code can be validated via tests with mocks.",
+  "contribution_requirements": "Production-grade quality on safety-critical paths (crisis routing, audit log). Immutable audit logs. Multi-tenant data isolation. Crisis routing must never depend on human review queue.",
+  "key_patterns": "Next.js App Router with server components, Prisma ORM, NextAuth for session auth, API key auth for ingestion endpoints, BullMQ for async scoring pipeline, shadcn/ui components",
+  "relevant_files": [
+    "src/app/layout.tsx",
+    "src/app/api/v1/ingest/route.ts",
+    "src/lib/scoring/turn-scorer.ts",
+    "src/lib/scoring/arc-scorer.ts",
+    "src/lib/crisis/router.ts",
+    "src/lib/threshold/engine.ts",
+    "src/workers/scoring-worker.ts",
+    "prisma/schema.prisma",
+    "src/app/dashboard/",
+    "src/app/api/auth/"
+  ],
+  "directory_structure": "src/app/ (Next.js App Router pages/API routes), src/lib/ (core business logic), src/workers/ (BullMQ worker processes), src/components/ (shadcn/ui components), prisma/ (schema + migrations), tests/ (test files mirroring src structure)"
+}
