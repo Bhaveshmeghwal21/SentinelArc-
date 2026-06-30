@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Reviewer dashboard, human review queue, compliance export, and labeled dataset pipeline. This covers the human-in-the-loop systems: a reviewer dashboard built with shadcn/ui showing flagged conversations with full context, one-click classification (true positive/false positive/escalate), and the compliance export system that produces regulator-grade audit reports. Also includes the labeled dataset pipeline that stores reviewer decisions tied to original content for future model tuning.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create shadcn/ui component foundation: Install and configure shadcn/ui CLI. Add core components: Button, Card, Badge, Table, Dialog, DropdownMenu, Input, Textarea, Select, Tabs, Avatar, Separator, ScrollArea, Alert, Toast. Create src/components/ui/ directory with all components.",
     "Create src/app/(dashboard)/layout.tsx: Authenticated dashboard layout with sidebar navigation (Overview, Review Queue, Conversations, Settings, Compliance, Billing), user avatar/role display, client context indicator for multi-tenant. Protect with NextAuth session check.",
@@ -34,5 +34,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 45 targeted tests pass. Full suite of 189 tests pass. Build succeeds. shadcn/ui components were created manually as directed (no CLI). The audit logger instance uses a Prisma-backed store that is append-only. The labeled dataset pipeline stores reviewer decisions tied to original content with JSONL export. Compliance export supports CSV and JSON with SB 243 fields for incident reports."
 }
