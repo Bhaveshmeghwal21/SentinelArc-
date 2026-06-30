@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "chore",
   "description": "CI pipeline, structured logging, alerting hooks, API documentation, and comprehensive README with architecture diagram. This is the operational excellence layer: GitHub Actions CI (lint, typecheck, test, build on every PR), structured logging throughout with special alerting on crisis path and scoring failures, OpenAPI-style documentation for the ingestion endpoint, and a detailed README with mermaid architecture diagram and decision log.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create .github/workflows/ci.yml: GitHub Actions workflow triggered on push and PR to main. Jobs: (1) lint - runs eslint, (2) typecheck - runs tsc --noEmit, (3) test - runs jest with coverage reporting, (4) build - runs next build. Use Node.js 22. Cache node_modules with actions/cache. Report test coverage as PR comment if available.",
     "Create src/lib/logging/logger.ts: Structured logging module using a lightweight structured logger (pino or custom implementation). Log levels: debug, info, warn, error, critical. Every log entry includes: timestamp, level, service (web/worker), client_id (if in tenant context), correlation_id (request/job ID), message, and structured data. Special log category 'CRISIS_PATH' for all crisis routing events. Special log category 'SCORING_FAILURE' for any scoring pipeline errors.",
@@ -31,5 +31,5 @@
     "npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All acceptance criteria met. Typecheck passes, all 273 tests pass (20 suites), build succeeds. The existing crisis router latency test produces many structured log lines to stdout during test run (expected behavior since the router now logs). Worker exit warning in test output is pre-existing (from latency test running many concurrent crisis route calls)."
 }
