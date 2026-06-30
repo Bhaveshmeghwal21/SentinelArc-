@@ -160,6 +160,17 @@ export type WebhookEventType =
   | "customer.subscription.deleted"
   | "invoice.payment_failed";
 
+/**
+ * Maps Stripe plan keys (used in subscription metadata) to database PlanTier enum values.
+ * The billing module uses GROWTH as the plan name, but the database enum uses PROFESSIONAL.
+ * This mapping is the single source of truth for that translation.
+ */
+export const PLAN_KEY_TO_TIER: Record<string, string> = {
+  STARTER: "STARTER",
+  GROWTH: "PROFESSIONAL",
+  ENTERPRISE: "ENTERPRISE",
+} as const;
+
 export interface WebhookResult {
   eventType: WebhookEventType;
   customerId: string;

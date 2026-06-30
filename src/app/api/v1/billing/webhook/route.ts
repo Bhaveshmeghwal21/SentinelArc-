@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { constructWebhookEvent, handleWebhook } from "@/lib/billing/stripe";
+import { constructWebhookEvent, handleWebhook, PLAN_KEY_TO_TIER } from "@/lib/billing/stripe";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const signature = request.headers.get("stripe-signature");
@@ -67,13 +67,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   switch (result.eventType) {
     case "customer.subscription.created":
     case "customer.subscription.updated": {
-      const planTierMap: Record<string, string> = {
-        STARTER: "STARTER",
-        GROWTH: "PROFESSIONAL",
-        ENTERPRISE: "ENTERPRISE",
-      };
-
-      const planTier = result.plan ? planTierMap[result.plan] : undefined;
+      const planTier = result.plan ? PLAN_KEY_TO_TIER[result.plan] : undefined;
 
       await prisma.client.update({
         where: { id: client.id },

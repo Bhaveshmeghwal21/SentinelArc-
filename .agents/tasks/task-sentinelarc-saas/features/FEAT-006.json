@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-006",
+  "type": "fix",
+  "description": "Address review findings: fix audit log hash chain in Prisma store, wire usage tracking to ingestion, fix circuit breaker shared state, fix plan naming mismatch, fix usage tracking race condition, remove misleading rate-limit headers, and add documentation for intentional threshold behavior.",
+  "status": "in_progress",
+  "steps": [
+    "Fix PrismaAuditLogStore to persist previousHash and entryHash in the payload JSON before storing, and reconstruct them properly on read",
+    "Wire trackTurnUsage into the ingestion route after conversation upsert",
+    "Fix the shared mutable circuit breaker by creating per-client circuit breaker instances",
+    "Fix the plan naming mismatch by mapping GROWTH to PROFESSIONAL consistently with a shared constant",
+    "Fix the usage tracking race condition by using Prisma atomic increment",
+    "Remove misleading hardcoded rate-limit headers from ingestion endpoint",
+    "Document the intentional threshold floor behavior in code comments",
+    "Add test for webhook plan-tier mapping",
+    "Verify all existing tests still pass"
+  ],
+  "acceptance_criteria": [
+    "PrismaAuditLogStore correctly persists and retrieves previousHash and entryHash",
+    "Ingestion route calls trackTurnUsage with correct parameters",
+    "Circuit breaker state is scoped per-client, not shared globally",
+    "Plan tier naming is consistent between billing module and webhook handler",
+    "Usage increments use Prisma atomic { increment: 1 } operations",
+    "No misleading rate-limit headers in ingestion response",
+    "Threshold floor behavior is documented",
+    "New test validates webhook plan-tier mapping",
+    "All existing tests pass (npm run typecheck, npm test, npm run build)"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

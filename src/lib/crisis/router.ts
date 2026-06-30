@@ -50,6 +50,7 @@ export interface CrisisRouteResponse {
 /**
  * Circuit breaker state for external dependencies.
  * If a dependency fails too many times, we stop calling it to maintain speed.
+ * Scoped per-client to prevent one client's failures from affecting others.
  */
 interface CircuitBreaker {
   failures: number;
@@ -57,14 +58,23 @@ interface CircuitBreaker {
   isOpen: boolean;
 }
 
-const DB_CIRCUIT_BREAKER: CircuitBreaker = {
-  failures: 0,
-  lastFailure: 0,
-  isOpen: false,
-};
+/** Per-client circuit breaker map. Each client gets independent failure tracking. */
+const circuitBreakers = new Map<string, CircuitBreaker>();
 
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_RESET_MS = 30_000; // 30 seconds
+
+/**
+ * Get or create a circuit breaker for a specific client.
+ */
+function getCircuitBreaker(clientId: string): CircuitBreaker {
+  let breaker = circuitBreakers.get(clientId);
+  if (!breaker) {
+    breaker = { failures: 0, lastFailure: 0, isOpen: false };
+    circuitBreakers.set(clientId, breaker);
+  }
+  return breaker;
+}
 
 /**
  * Check circuit breaker state and optionally reset if enough time has passed.
@@ -224,8 +234,10 @@ function fireSideEffects(
   response: CrisisRouteResponse,
   deps: CrisisRouterDependencies
 ): void {
-  // Log crisis event (fire-and-forget with circuit breaker)
-  if (deps.logCrisisEvent && !checkCircuitBreaker(DB_CIRCUIT_BREAKER)) {
+  const breaker = getCircuitBreaker(context.clientId);
+
+  // Log crisis event (fire-and-forget with per-client circuit breaker)
+  if (deps.logCrisisEvent && !checkCircuitBreaker(breaker)) {
     deps
       .logCrisisEvent({
         clientId: context.clientId,
@@ -234,8 +246,8 @@ function fireSideEffects(
         latencyMs: response.latencyMs,
         success: response.success,
       })
-      .then(() => recordSuccess(DB_CIRCUIT_BREAKER))
-      .catch(() => recordFailure(DB_CIRCUIT_BREAKER));
+      .then(() => recordSuccess(breaker))
+      .catch(() => recordFailure(breaker));
   }
 
   // Enqueue review (fire-and-forget)
@@ -250,7 +262,5 @@ function fireSideEffects(
  * Reset circuit breaker state (for testing purposes).
  */
 export function resetCircuitBreakers(): void {
-  DB_CIRCUIT_BREAKER.failures = 0;
-  DB_CIRCUIT_BREAKER.lastFailure = 0;
-  DB_CIRCUIT_BREAKER.isOpen = false;
+  circuitBreakers.clear();
 }

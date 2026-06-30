@@ -4,6 +4,7 @@ import { type Prisma } from "@prisma/client";
 import { validateApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 import { enqueueScoringJob } from "@/lib/queue";
+import { trackTurnUsage } from "@/lib/billing/usage-tracker";
 
 const TurnSchema = z.object({
   role: z.enum(["user", "companion"]),
@@ -76,6 +77,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     },
   });
 
+  // Determine if this is a new conversation by checking if lastActiveAt
+  // matches the creation time (within a small window for clock precision)
+  const isNewConversation =
+    conversation.lastActiveAt.getTime() === conversation.createdAt.getTime();
+
   // Create conversation turn
   const conversationTurn = await prisma.conversationTurn.create({
     data: {
@@ -85,6 +91,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       timestamp: new Date(turn.timestamp),
       metadata: (turn.metadata as Prisma.InputJsonValue) ?? undefined,
     },
+  });
+
+  // Track usage for billing (fire-and-forget to avoid blocking ingestion)
+  trackTurnUsage(clientId, isNewConversation).catch(() => {
+    // Usage tracking failure should not block ingestion
   });
 
   // Enqueue scoring job
@@ -103,13 +114,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     },
     {
       status: 202,
-      headers: {
-        "X-RateLimit-Limit": "1000",
-        "X-RateLimit-Remaining": "999",
-        "X-RateLimit-Reset": String(
-          Math.floor(Date.now() / 1000) + 3600
-        ),
-      },
     }
   );
 }

@@ -20,9 +20,14 @@ jest.mock("@/lib/queue", () => ({
   enqueueScoringJob: jest.fn(),
 }));
 
+jest.mock("@/lib/billing/usage-tracker", () => ({
+  trackTurnUsage: jest.fn().mockResolvedValue({ usage: {}, alert: null }),
+}));
+
 import { prisma } from "@/lib/prisma";
 import { validateApiKey } from "@/lib/api-keys";
 import { enqueueScoringJob } from "@/lib/queue";
+import { trackTurnUsage } from "@/lib/billing/usage-tracker";
 
 const mockValidateApiKey = validateApiKey as jest.MockedFunction<
   typeof validateApiKey
@@ -30,6 +35,9 @@ const mockValidateApiKey = validateApiKey as jest.MockedFunction<
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 const mockEnqueueScoringJob = enqueueScoringJob as jest.MockedFunction<
   typeof enqueueScoringJob
+>;
+const mockTrackTurnUsage = trackTurnUsage as jest.MockedFunction<
+  typeof trackTurnUsage
 >;
 
 function createRequest(body: unknown, headers: Record<string, string> = {}) {
@@ -221,6 +229,8 @@ describe("POST /api/v1/ingest", () => {
   });
 
   describe("Successful Ingestion", () => {
+    const now = new Date();
+
     beforeEach(() => {
       mockValidateApiKey.mockResolvedValue({
         clientId: "client-1",
@@ -231,6 +241,8 @@ describe("POST /api/v1/ingest", () => {
         externalId: "conv-1",
         endUserId: "user-1",
         clientId: "client-1",
+        createdAt: now,
+        lastActiveAt: now,
       });
       (mockPrisma.conversationTurn.create as jest.Mock).mockResolvedValue({
         id: "turn-1",
@@ -240,6 +252,7 @@ describe("POST /api/v1/ingest", () => {
         timestamp: new Date("2024-01-01T00:00:00Z"),
       });
       mockEnqueueScoringJob.mockResolvedValue("job-1");
+      mockTrackTurnUsage.mockResolvedValue({ usage: {} as any, alert: null });
     });
 
     it("should return 202 with turn_id for valid request", async () => {
@@ -265,7 +278,7 @@ describe("POST /api/v1/ingest", () => {
       expect(data.status).toBe("accepted");
     });
 
-    it("should include rate limiting headers", async () => {
+    it("should not include misleading rate-limit headers", async () => {
       const request = createRequest(
         {
           conversation_id: "conv-1",
@@ -280,9 +293,9 @@ describe("POST /api/v1/ingest", () => {
       );
 
       const response = await POST(request);
-      expect(response.headers.get("X-RateLimit-Limit")).toBe("1000");
-      expect(response.headers.get("X-RateLimit-Remaining")).toBe("999");
-      expect(response.headers.get("X-RateLimit-Reset")).toBeTruthy();
+      expect(response.headers.get("X-RateLimit-Limit")).toBeNull();
+      expect(response.headers.get("X-RateLimit-Remaining")).toBeNull();
+      expect(response.headers.get("X-RateLimit-Reset")).toBeNull();
     });
 
     it("should upsert the conversation with correct client_id", async () => {
@@ -354,6 +367,87 @@ describe("POST /api/v1/ingest", () => {
 
       const response = await POST(request);
       expect(response.status).toBe(202);
+    });
+
+    it("should call trackTurnUsage for billing after ingestion", async () => {
+      const request = createRequest(
+        {
+          conversation_id: "conv-1",
+          end_user_id: "user-1",
+          turn: {
+            role: "user",
+            content: "Hello there",
+            timestamp: "2024-01-01T00:00:00Z",
+          },
+        },
+        { "X-API-Key": "sa_live_validkey" }
+      );
+
+      await POST(request);
+
+      expect(mockTrackTurnUsage).toHaveBeenCalledWith(
+        "client-1",
+        expect.any(Boolean)
+      );
+    });
+
+    it("should detect new conversation for usage tracking", async () => {
+      // When createdAt === lastActiveAt, it is a new conversation
+      const createdTime = new Date("2024-01-01T00:00:00Z");
+      (mockPrisma.conversation.upsert as jest.Mock).mockResolvedValue({
+        id: "internal-conv-1",
+        externalId: "conv-1",
+        endUserId: "user-1",
+        clientId: "client-1",
+        createdAt: createdTime,
+        lastActiveAt: createdTime,
+      });
+
+      const request = createRequest(
+        {
+          conversation_id: "conv-1",
+          end_user_id: "user-1",
+          turn: {
+            role: "user",
+            content: "Hello",
+            timestamp: "2024-01-01T00:00:00Z",
+          },
+        },
+        { "X-API-Key": "sa_live_validkey" }
+      );
+
+      await POST(request);
+
+      expect(mockTrackTurnUsage).toHaveBeenCalledWith("client-1", true);
+    });
+
+    it("should detect existing conversation for usage tracking", async () => {
+      // When lastActiveAt !== createdAt, it is an existing conversation
+      (mockPrisma.conversation.upsert as jest.Mock).mockResolvedValue({
+        id: "internal-conv-1",
+        externalId: "conv-1",
+        endUserId: "user-1",
+        clientId: "client-1",
+        createdAt: new Date("2024-01-01T00:00:00Z"),
+        lastActiveAt: new Date("2024-01-02T00:00:00Z"),
+      });
+
+      const request = createRequest(
+        {
+          conversation_id: "conv-1",
+          end_user_id: "user-1",
+          turn: {
+            role: "user",
+            content: "Hello again",
+            timestamp: "2024-01-02T00:00:00Z",
+          },
+        },
+        { "X-API-Key": "sa_live_validkey" }
+      );
+
+      await POST(request);
+
+      expect(mockTrackTurnUsage).toHaveBeenCalledWith("client-1", false);
     });
   });
 });

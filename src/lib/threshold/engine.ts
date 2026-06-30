@@ -47,11 +47,23 @@ export interface ClientThresholdConfig {
   softFlag_selfHarm?: number;
   /** Threshold for HARD_BLOCK on sexual content with minor - cannot be below 0.6 */
   hardBlock_sexualWithMinor?: number;
-  /** Threshold for soft flag on emotional intensity (client can raise only) */
+  /**
+   * Threshold for soft flag on emotional intensity (minimum floor: 0.5).
+   * Clients can only raise this above the default to reduce flagging; lowering
+   * below the default is not permitted to maintain baseline safety detection.
+   */
   softFlag_emotionalIntensity?: number;
-  /** Threshold for soft flag on dependency language (client can raise only) */
+  /**
+   * Threshold for soft flag on dependency language (minimum floor: 0.5).
+   * Clients can only raise this above the default to reduce flagging; lowering
+   * below the default is not permitted to maintain baseline safety detection.
+   */
   softFlag_dependencyLanguage?: number;
-  /** Threshold for soft flag on romantic escalation (client can raise only) */
+  /**
+   * Threshold for soft flag on romantic escalation (minimum floor: 0.5).
+   * Clients can only raise this above the default to reduce flagging; lowering
+   * below the default is not permitted to maintain baseline safety detection.
+   */
   softFlag_romanticEscalation?: number;
 }
 
@@ -102,7 +114,11 @@ export function enforceThresholds(
         1.0
       )
     ),
-    // Other soft flag thresholds: client can only raise these
+    // Other soft flag thresholds: client can only raise these above the default floor.
+    // This is intentional - the default value (0.5) represents the minimum safe sensitivity
+    // for non-crisis categories. Clients who need lower sensitivity (fewer false positives)
+    // should use the review queue to reclassify rather than suppress detection entirely.
+    // See: docs/api.md for client-facing documentation of this constraint.
     softFlag_emotionalIntensity: Math.max(
       clientConfig.softFlag_emotionalIntensity ?? DEFAULT_THRESHOLDS.softFlag_emotionalIntensity,
       DEFAULT_THRESHOLDS.softFlag_emotionalIntensity

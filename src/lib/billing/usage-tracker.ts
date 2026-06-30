@@ -91,12 +91,14 @@ export async function getOrCreateUsageRecord(
 
 /**
  * Increment conversation count for a client in the current billing period.
+ * Uses Prisma's atomic increment to avoid race conditions under concurrent requests.
  */
 export async function incrementConversationCount(
   clientId: string
 ): Promise<UsageRecord> {
   const { start, end } = getCurrentBillingPeriod();
 
+  // Ensure the record exists
   const record = await getOrCreateUsageRecord(clientId);
 
   const updated = await prisma.billingUsage.updateMany({
@@ -106,7 +108,7 @@ export async function incrementConversationCount(
       periodEnd: end,
     },
     data: {
-      conversationCount: record.conversationCount + 1,
+      conversationCount: { increment: 1 },
     },
   });
 
@@ -120,12 +122,14 @@ export async function incrementConversationCount(
 
 /**
  * Increment turn count for a client in the current billing period.
+ * Uses Prisma's atomic increment to avoid race conditions under concurrent requests.
  */
 export async function incrementTurnCount(
   clientId: string
 ): Promise<UsageRecord> {
   const { start, end } = getCurrentBillingPeriod();
 
+  // Ensure the record exists
   const record = await getOrCreateUsageRecord(clientId);
 
   const updated = await prisma.billingUsage.updateMany({
@@ -135,7 +139,7 @@ export async function incrementTurnCount(
       periodEnd: end,
     },
     data: {
-      turnCount: record.turnCount + 1,
+      turnCount: { increment: 1 },
     },
   });
 

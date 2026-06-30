@@ -10,9 +10,21 @@ import { AuditLogger, type AuditLogStore, type AuditLogEntry } from "./logger";
 /**
  * Prisma-backed audit log store.
  * Append-only: no update or delete operations.
+ *
+ * Hash chain data (previousHash, entryHash) is persisted within the JSON
+ * payload field using reserved keys `_previousHash` and `_entryHash`.
+ * This preserves the tamper-evidence guarantee without requiring schema migration.
  */
 class PrismaAuditLogStore implements AuditLogStore {
   async append(entry: AuditLogEntry): Promise<void> {
+    // Persist hash chain data inside the payload JSON so that
+    // verification works correctly in production.
+    const payloadWithHashes = {
+      ...(entry.payload ?? {}),
+      _previousHash: entry.previousHash,
+      _entryHash: entry.entryHash,
+    };
+
     await prisma.auditLogEntry.create({
       data: {
         id: entry.id,
@@ -20,7 +32,7 @@ class PrismaAuditLogStore implements AuditLogStore {
         actor: entry.actor,
         action: entry.action,
         resource: entry.resource,
-        payload: (entry.payload ?? undefined) as Prisma.InputJsonValue | undefined,
+        payload: payloadWithHashes as Prisma.InputJsonValue,
         timestamp: entry.timestamp,
       },
     });
@@ -34,21 +46,7 @@ class PrismaAuditLogStore implements AuditLogStore {
 
     if (!entry) return null;
 
-    // Reconstruct the AuditLogEntry format
-    // In production, we'd store previousHash and entryHash in the DB.
-    // For now we reconstruct from payload metadata.
-    const payload = (entry.payload as Record<string, unknown>) ?? {};
-    return {
-      id: entry.id,
-      clientId: entry.clientId,
-      actor: entry.actor,
-      action: entry.action,
-      resource: entry.resource,
-      payload,
-      timestamp: entry.timestamp,
-      previousHash: (payload._previousHash as string) ?? "GENESIS",
-      entryHash: (payload._entryHash as string) ?? "",
-    };
+    return this.reconstructEntry(entry);
   }
 
   async getAllEntries(clientId: string): Promise<AuditLogEntry[]> {
@@ -57,20 +55,42 @@ class PrismaAuditLogStore implements AuditLogStore {
       orderBy: { timestamp: "asc" },
     });
 
-    return entries.map((entry) => {
-      const payload = (entry.payload as Record<string, unknown>) ?? {};
-      return {
-        id: entry.id,
-        clientId: entry.clientId,
-        actor: entry.actor,
-        action: entry.action,
-        resource: entry.resource,
-        payload,
-        timestamp: entry.timestamp,
-        previousHash: (payload._previousHash as string) ?? "GENESIS",
-        entryHash: (payload._entryHash as string) ?? "",
-      };
-    });
+    return entries.map((entry) => this.reconstructEntry(entry));
+  }
+
+  /**
+   * Reconstruct an AuditLogEntry from a Prisma record.
+   * Extracts hash chain data from the payload and returns the
+   * user-facing payload without the internal hash keys.
+   */
+  private reconstructEntry(entry: {
+    id: string;
+    clientId: string;
+    actor: string;
+    action: string;
+    resource: string;
+    payload: unknown;
+    timestamp: Date;
+  }): AuditLogEntry {
+    const rawPayload = (entry.payload as Record<string, unknown>) ?? {};
+    const previousHash = (rawPayload._previousHash as string) ?? "GENESIS";
+    const entryHash = (rawPayload._entryHash as string) ?? "";
+
+    // Return the payload without the internal hash keys
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _previousHash: _ph, _entryHash: _eh, ...userPayload } = rawPayload;
+
+    return {
+      id: entry.id,
+      clientId: entry.clientId,
+      actor: entry.actor,
+      action: entry.action,
+      resource: entry.resource,
+      payload: userPayload,
+      timestamp: entry.timestamp,
+      previousHash,
+      entryHash,
+    };
   }
 }
 

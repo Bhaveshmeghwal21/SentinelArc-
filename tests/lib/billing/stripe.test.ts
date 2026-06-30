@@ -6,6 +6,7 @@ import {
   handleWebhook,
   constructWebhookEvent,
   PLAN_CONFIGS,
+  PLAN_KEY_TO_TIER,
   setStripeInstance,
 } from "@/lib/billing/stripe";
 import Stripe from "stripe";
@@ -309,6 +310,34 @@ describe("Stripe Billing Module", () => {
       expect(result).toBe(mockEvent);
 
       delete process.env.STRIPE_WEBHOOK_SECRET;
+    });
+  });
+
+  describe("PLAN_KEY_TO_TIER mapping", () => {
+    it("should map STARTER to STARTER database tier", () => {
+      expect(PLAN_KEY_TO_TIER["STARTER"]).toBe("STARTER");
+    });
+
+    it("should map GROWTH to PROFESSIONAL database tier", () => {
+      expect(PLAN_KEY_TO_TIER["GROWTH"]).toBe("PROFESSIONAL");
+    });
+
+    it("should map ENTERPRISE to ENTERPRISE database tier", () => {
+      expect(PLAN_KEY_TO_TIER["ENTERPRISE"]).toBe("ENTERPRISE");
+    });
+
+    it("should have a mapping for every plan in PLAN_CONFIGS", () => {
+      for (const planKey of Object.keys(PLAN_CONFIGS)) {
+        expect(PLAN_KEY_TO_TIER[planKey]).toBeDefined();
+        expect(typeof PLAN_KEY_TO_TIER[planKey]).toBe("string");
+      }
+    });
+
+    it("should only map to valid PlanTier enum values", () => {
+      const validTiers = ["FREE", "STARTER", "PROFESSIONAL", "ENTERPRISE"];
+      for (const tier of Object.values(PLAN_KEY_TO_TIER)) {
+        expect(validTiers).toContain(tier);
+      }
     });
   });
 });
