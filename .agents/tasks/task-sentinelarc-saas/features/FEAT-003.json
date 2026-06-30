@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Reviewer dashboard, human review queue, compliance export, and labeled dataset pipeline. This covers the human-in-the-loop systems: a reviewer dashboard built with shadcn/ui showing flagged conversations with full context, one-click classification (true positive/false positive/escalate), and the compliance export system that produces regulator-grade audit reports. Also includes the labeled dataset pipeline that stores reviewer decisions tied to original content for future model tuning.",
+  "status": "pending",
+  "steps": [
+    "Create shadcn/ui component foundation: Install and configure shadcn/ui CLI. Add core components: Button, Card, Badge, Table, Dialog, DropdownMenu, Input, Textarea, Select, Tabs, Avatar, Separator, ScrollArea, Alert, Toast. Create src/components/ui/ directory with all components.",
+    "Create src/app/(dashboard)/layout.tsx: Authenticated dashboard layout with sidebar navigation (Overview, Review Queue, Conversations, Settings, Compliance, Billing), user avatar/role display, client context indicator for multi-tenant. Protect with NextAuth session check.",
+    "Create src/app/(dashboard)/review/page.tsx: Review queue page showing flagged conversations. Table/list view with columns: severity badge (critical/high/medium), category (self-harm/sexual/age-inappropriate/escalation), conversation snippet, timestamp flagged, assigned reviewer, status. Filters: by severity, category, status (pending/in-review/resolved), date range. Sort by priority (critical first, then by time).",
+    "Create src/app/(dashboard)/review/[flagId]/page.tsx: Detailed review view for a single flagged conversation. Shows: full conversation history with the flagged turn highlighted, all scores (turn-level and arc-level) visualized, what specific patterns/rules triggered the flag, suggested action, and the classification form. Classification options: True Positive (confirmed risk - action was appropriate), False Positive (not actually risky - improve detection), Escalate (needs senior review or action beyond current scope). Notes field for reviewer context. Assign-to-reviewer dropdown.",
+    "Create API routes for the review system: src/app/api/v1/reviews/route.ts (GET - list review items with filters, RBAC: REVIEWER or ADMIN), src/app/api/v1/reviews/[reviewId]/route.ts (GET - detail, PATCH - update status/assignment), src/app/api/v1/reviews/[reviewId]/decide/route.ts (POST - submit classification decision with notes). All decisions logged to audit trail. Decision creates a LabeledDataEntry automatically.",
+    "Create src/lib/labeled-dataset/pipeline.ts: When a reviewer makes a classification decision, automatically create a LabeledDataEntry containing: the original turn content, all scores at time of flag, the arc context (surrounding turns), the reviewer's decision (true_positive/false_positive/escalate), reviewer notes, a version number. This is the training data pipeline - structured for future model fine-tuning. Include export function that produces versioned JSONL format suitable for ML training.",
+    "Create src/app/api/v1/labeled-data/route.ts: GET endpoint to export labeled dataset for a client (ADMIN only). Supports JSONL format with versioning. Includes metadata about the scoring model version that produced the original scores.",
+    "Create src/app/(dashboard)/compliance/page.tsx: Compliance export page. Client admin can generate reports for specified time periods. Report types: Full Audit Log (all events), Incident Report (flags + actions + outcomes), Response Time Report (time from flag to action/resolution), Review Outcomes Summary (TP/FP rates, categories). Export formats: CSV, PDF (generated server-side).",
+    "Create src/app/api/v1/compliance/export/route.ts: POST endpoint to generate compliance exports. Accepts: report_type, date_range, format (csv/json). Returns download URL or streams the file. The export maps to what regulators ask for: timestamped flags, actions taken, response time from flag to action, human review outcomes. Include California SB 243 reporting fields specifically.",
+    "Create src/lib/compliance/report-generator.ts: Report generation logic. Queries audit log entries for the client and time period, formats them according to report type. For Incident Reports: groups by incident (flag -> actions -> review -> resolution), calculates response times, includes full conversation context for each incident. CSV format uses headers that map to known regulatory reporting templates.",
+    "Write tests for the review API: tests/api/reviews.test.ts - RBAC enforcement (reviewer can access queue, non-reviewer cannot), classification flow (pending -> in_review -> resolved), audit log entries created on every decision, labeled dataset entry created on classification. Write tests for compliance export: tests/lib/compliance/report-generator.test.ts - correct date filtering, correct grouping, response time calculation, CSV format validity.",
+    "Write audit log immutability tests in tests/lib/audit/immutability.test.ts: Verify no code path exposes update/delete on audit entries. Verify hash chain integrity checking works. Verify tampered entries are detected. Verify that all review actions produce audit entries."
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with zero errors",
+    "npm test passes all review, compliance, labeled-dataset, and audit immutability tests",
+    "Review queue page renders with proper filtering and sorting",
+    "Classification decisions are recorded in both ReviewDecision and LabeledDataEntry tables",
+    "Compliance export produces valid CSV with correct headers and data",
+    "Audit log immutability is enforced - no update/delete operations exist on audit entries",
+    "RBAC correctly restricts review actions to REVIEWER and ADMIN roles",
+    "All reviewer actions create audit log entries",
+    "Labeled dataset export produces valid JSONL with all required fields"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm test -- --testPathPattern='review|compliance|audit|labeled'",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

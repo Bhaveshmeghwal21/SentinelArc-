@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-005",
+  "type": "chore",
+  "description": "CI pipeline, structured logging, alerting hooks, API documentation, and comprehensive README with architecture diagram. This is the operational excellence layer: GitHub Actions CI (lint, typecheck, test, build on every PR), structured logging throughout with special alerting on crisis path and scoring failures, OpenAPI-style documentation for the ingestion endpoint, and a detailed README with mermaid architecture diagram and decision log.",
+  "status": "pending",
+  "steps": [
+    "Create .github/workflows/ci.yml: GitHub Actions workflow triggered on push and PR to main. Jobs: (1) lint - runs eslint, (2) typecheck - runs tsc --noEmit, (3) test - runs jest with coverage reporting, (4) build - runs next build. Use Node.js 22. Cache node_modules with actions/cache. Report test coverage as PR comment if available.",
+    "Create src/lib/logging/logger.ts: Structured logging module using a lightweight structured logger (pino or custom implementation). Log levels: debug, info, warn, error, critical. Every log entry includes: timestamp, level, service (web/worker), client_id (if in tenant context), correlation_id (request/job ID), message, and structured data. Special log category 'CRISIS_PATH' for all crisis routing events. Special log category 'SCORING_FAILURE' for any scoring pipeline errors.",
+    "Create src/lib/logging/alerts.ts: Alerting hooks module. Defines alert conditions: (1) crisis routing failure (any error in the crisis path), (2) scoring pipeline failure (worker crashes, unhandled errors), (3) scoring latency spike (queue depth exceeds threshold), (4) audit log write failure. Each alert has a severity and a dispatch mechanism (v1: logs at CRITICAL level with structured alert payload, designed to be picked up by external monitoring like Datadog/PagerDuty via log ingestion). Include a webhook dispatch option for clients who want real-time notifications.",
+    "Add structured logging throughout the crisis routing path: every entry/exit point logged with timing, any error logged at CRITICAL with full context. Add to scoring worker: job start/complete/fail logged, latency tracked.",
+    "Create docs/api.md: API documentation for the ingestion endpoint. Includes: endpoint URL, authentication (X-API-Key header), request body schema with examples, response codes and bodies (202 Accepted, 400 Validation Error, 401 Unauthorized, 429 Rate Limited), webhook callback format for async action notifications (block/crisis), rate limits, example curl commands, example integration in Python and Node.js. This is what client engineering teams integrate against.",
+    "Create README.md at project root with: (1) Product overview (what SentinelArc does and why it exists), (2) Architecture diagram in mermaid showing: client app -> ingestion API -> BullMQ queue -> scoring worker (turn scorer + arc scorer) -> threshold engine -> action executor (soft flag / hard block / crisis route), with crisis router having a fast-path bypass of the queue for immediate triggers, reviewer dashboard reading from review queue, audit log as append-only store, (3) Tech stack summary, (4) Local development setup instructions (npm install, env vars needed, prisma generate, npm run dev, worker start command), (5) Testing instructions (npm test, test categories), (6) Decision log documenting: why crisis routing is decoupled from human review queue, why the system is framed as triage/routing not diagnosis, why arc-level scoring exists alongside turn-level, why audit log uses hash chaining, (7) Known limitations of v1 detection approach (pattern-based has false positive/negative rates, arc scoring window is limited, no real ML model in v1 - using rules + external API), (8) Environment variables reference.",
+    "Create .env.example with all required environment variables documented: DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, REDIS_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, OPENAI_API_KEY (for moderation API, optional in v1), LOG_LEVEL, ALERT_WEBHOOK_URL (optional).",
+    "Write tests for the logging module: tests/lib/logging/logger.test.ts (structured output format, level filtering, context injection), tests/lib/logging/alerts.test.ts (alert conditions trigger correctly, crisis path failures always alert at CRITICAL)."
+  ],
+  "acceptance_criteria": [
+    "npm run typecheck passes with zero errors",
+    "npm test passes all tests including new logging tests",
+    "npm run build completes successfully",
+    ".github/workflows/ci.yml is valid YAML with correct GitHub Actions syntax",
+    "README.md includes mermaid architecture diagram that renders correctly",
+    "README.md decision log explains crisis routing decoupling and triage-not-diagnosis framing",
+    "docs/api.md provides complete integration documentation with examples",
+    ".env.example lists all required environment variables",
+    "Structured logging is present on all crisis routing code paths",
+    "Known limitations section honestly documents v1 detection approach gaps"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm test",
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
