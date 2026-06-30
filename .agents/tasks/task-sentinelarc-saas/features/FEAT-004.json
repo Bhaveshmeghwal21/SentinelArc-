@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Client-facing statistics dashboard, Stripe billing integration with usage metering, and client settings/threshold configuration UI. This covers the business-facing features: aggregate stats showing the system is working (flags over time, response times, false-positive rates), billing tied to conversation volume, and the self-service configuration for thresholds.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create src/app/(dashboard)/page.tsx (overview/stats dashboard): Client-facing statistics page showing aggregate metrics. Cards for: total conversations monitored (period), flags raised (by category), average response time (flag to action), false positive rate trend, crisis routes triggered, conversations blocked. Charts: flags over time (line chart, last 30 days), category breakdown (pie/donut chart), response time trend. Use recharts or a lightweight charting library compatible with shadcn/ui.",
     "Create src/app/api/v1/stats/route.ts: API endpoint returning aggregate statistics for the authenticated client. Metrics: conversation_count, turn_count, flag_count (by category and severity), action_count (by type), average_response_time_ms, false_positive_rate, crisis_route_count. Supports date range filtering. All queries are tenant-isolated.",
