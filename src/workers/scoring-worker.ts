@@ -19,6 +19,8 @@ import { evaluateThresholds, type ClientThresholdConfig } from "../lib/threshold
 import { executeActions, type ActionStore } from "../lib/actions/executor";
 import { routeCrisis, type CrisisRouterDependencies } from "../lib/crisis/router";
 import { AuditLogger, type AuditLogStore } from "../lib/audit/logger";
+import { createWorkerLogger } from "../lib/logging/logger";
+import { createAlertDispatcher } from "../lib/logging/alerts";
 
 /** Crisis fast-path threshold: above this, crisis routing fires immediately */
 const CRISIS_FAST_PATH_THRESHOLD = 0.9;
@@ -72,15 +74,44 @@ export async function processScoreTurnJob(
   actions: string[];
 }> {
   const { turnId, conversationId, clientId } = data;
+  const logger = createWorkerLogger(turnId, clientId);
+  const alertDispatcher = createAlertDispatcher(logger);
+  const jobStartTime = Date.now();
+
+  logger.info("Scoring turn job started", {
+    turnId,
+    conversationId,
+    clientId,
+    jobType: "SCORE_TURN",
+  });
 
   // Load turn content
   const turn = await deps.store.getTurnContent(turnId);
   if (!turn) {
-    throw new Error(`Turn not found: ${turnId}`);
+    const errorMsg = `Turn not found: ${turnId}`;
+    alertDispatcher.alertScoringPipelineFailure({
+      clientId,
+      turnId,
+      conversationId,
+      error: errorMsg,
+    });
+    throw new Error(errorMsg);
   }
 
   // Score the turn
-  const scores = await scoreTurn(turn.content, deps.turnScorerConfig);
+  let scores: TurnScores;
+  try {
+    scores = await scoreTurn(turn.content, deps.turnScorerConfig);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    alertDispatcher.alertScoringPipelineFailure({
+      clientId,
+      turnId,
+      conversationId,
+      error: `Turn scoring failed: ${errorMsg}`,
+    });
+    throw err;
+  }
 
   // Store scores
   await deps.store.storeTurnScore(turnId, scores);
@@ -89,6 +120,14 @@ export async function processScoreTurnJob(
   // fire crisis routing IMMEDIATELY before any further processing.
   let crisisFastPathFired = false;
   if (scores.selfHarm >= CRISIS_FAST_PATH_THRESHOLD) {
+    logger.crisisPath("critical", "Crisis fast-path triggered", {
+      clientId,
+      conversationId,
+      turnId,
+      selfHarmScore: scores.selfHarm,
+      threshold: CRISIS_FAST_PATH_THRESHOLD,
+    });
+
     routeCrisis(
       {
         clientId,
@@ -132,6 +171,16 @@ export async function processScoreTurnJob(
     deps.crisisDeps
   );
 
+  const jobDurationMs = Date.now() - jobStartTime;
+  logger.info("Scoring turn job completed", {
+    turnId,
+    conversationId,
+    clientId,
+    durationMs: jobDurationMs,
+    crisisFastPathFired,
+    actionsExecuted: results.map((r) => r.type),
+  });
+
   return {
     scores,
     crisisFastPathFired,
@@ -150,11 +199,35 @@ export async function processScoreArcJob(
   actions: string[];
 }> {
   const { conversationId, clientId, turnId } = data;
+  const logger = createWorkerLogger(turnId, clientId);
+  const alertDispatcher = createAlertDispatcher(logger);
+  const jobStartTime = Date.now();
+
+  logger.info("Scoring arc job started", {
+    conversationId,
+    clientId,
+    turnId,
+    jobType: "SCORE_ARC",
+  });
 
   // Load conversation history scores
-  const recentScores = await deps.store.getRecentTurnScores(conversationId, 10);
+  let recentScores: TurnScores[];
+  try {
+    recentScores = await deps.store.getRecentTurnScores(conversationId, 10);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    alertDispatcher.alertScoringPipelineFailure({
+      clientId,
+      conversationId,
+      error: `Failed to load recent scores: ${errorMsg}`,
+    });
+    throw err;
+  }
 
   if (recentScores.length === 0) {
+    logger.info("No recent scores found for arc scoring, returning empty", {
+      conversationId,
+    });
     return {
       arcScore: scoreArc([]),
       actions: [],
@@ -186,6 +259,15 @@ export async function processScoreArcJob(
     deps.crisisDeps
   );
 
+  const jobDurationMs = Date.now() - jobStartTime;
+  logger.info("Scoring arc job completed", {
+    conversationId,
+    clientId,
+    durationMs: jobDurationMs,
+    actionsExecuted: results.map((r) => r.type),
+    escalation: arcScore.escalationFlags,
+  });
+
   return {
     arcScore,
     actions: results.map((r) => r.type),
@@ -200,6 +282,9 @@ export function createScoringWorker(
   connection: ConnectionOptions,
   deps: ScoringWorkerDependencies
 ): Worker {
+  const workerLogger = createWorkerLogger("worker-main");
+  const alertDispatcher = createAlertDispatcher(workerLogger);
+
   const worker = new Worker<ScoringJobData>(
     SCORING_QUEUE_NAME,
     async (job: Job<ScoringJobData>) => {
@@ -221,6 +306,21 @@ export function createScoringWorker(
       },
     }
   );
+
+  worker.on("failed", (job, err) => {
+    const data = job?.data;
+    alertDispatcher.alertScoringPipelineFailure({
+      clientId: data?.clientId ?? "unknown",
+      jobId: job?.id,
+      turnId: data?.turnId,
+      conversationId: data?.conversationId,
+      error: err.message,
+    });
+  });
+
+  worker.on("error", (err) => {
+    workerLogger.error("Worker error", { error: err.message });
+  });
 
   return worker;
 }

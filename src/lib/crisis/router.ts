@@ -21,6 +21,7 @@ import {
   getResourcesForRegion,
   validateResources,
 } from "./resources";
+import { Logger, createWebLogger } from "../logging/logger";
 
 export interface CrisisRouteContext {
   clientId: string;
@@ -116,6 +117,8 @@ export interface CrisisRouterDependencies {
   }) => Promise<void>;
   /** Enqueue a high-priority review item */
   enqueueReview?: (context: CrisisRouteContext) => Promise<void>;
+  /** Optional structured logger instance */
+  logger?: Logger;
 }
 
 /** Default no-op dependencies */
@@ -135,17 +138,35 @@ export function routeCrisis(
   context: CrisisRouteContext,
   deps: CrisisRouterDependencies = DEFAULT_DEPENDENCIES
 ): CrisisRouteResponse {
+  const logger = deps.logger ?? createWebLogger(context.turnId, context.clientId);
   const startTime = performance.now();
+
+  logger.crisisPath("info", "Crisis routing initiated", {
+    clientId: context.clientId,
+    conversationId: context.conversationId,
+    turnId: context.turnId,
+    triggerCategory: context.triggerCategory,
+    triggerScore: context.triggerScore,
+    region: context.region,
+  });
 
   // Get appropriate resources - this is a pure synchronous operation
   let resources: CrisisResource[];
   try {
     resources = getResourcesForRegion(context.region);
     if (!validateResources(resources)) {
+      logger.crisisPath("warn", "Resource validation failed, using defaults", {
+        region: context.region,
+      });
       // Fallback to guaranteed defaults
       resources = getDefaultResources();
     }
-  } catch {
+  } catch (err) {
+    logger.crisisPath("critical", "Failed to fetch resources, using absolute fallback", {
+      error: err instanceof Error ? err.message : String(err),
+      clientId: context.clientId,
+      conversationId: context.conversationId,
+    });
     // Absolute fallback - this should never happen, but safety first
     resources = getDefaultResources();
   }
@@ -159,6 +180,13 @@ export function routeCrisis(
     latencyMs,
     timestamp: new Date(),
   };
+
+  logger.crisisPath("info", "Crisis routing completed successfully", {
+    clientId: context.clientId,
+    conversationId: context.conversationId,
+    latencyMs,
+    resourceCount: resources.length,
+  });
 
   // Fire-and-forget side effects - these MUST NOT block the response
   fireSideEffects(context, response, deps);
