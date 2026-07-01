@@ -4,6 +4,7 @@ import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
@@ -70,6 +71,9 @@ export default async function DashboardLayout({
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
             Client: {session.user.clientId}
+          </div>
+          <div className="mt-3">
+            <SignOutButton />
           </div>
         </div>
       </aside>
