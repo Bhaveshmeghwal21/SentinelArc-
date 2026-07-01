@@ -1,10 +1,12 @@
 name: CI
 
+# Run on every push and on every pull request regardless of the target
+# branch. The previous config only triggered on pushes/PRs to `main`, which
+# silently skipped CI for PRs opened against other base branches (e.g. `base`).
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
-    branches: [main]
 
 jobs:
   lint:
