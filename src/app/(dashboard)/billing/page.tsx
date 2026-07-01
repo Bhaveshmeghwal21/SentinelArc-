@@ -134,6 +134,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchBilling() {
@@ -171,6 +173,26 @@ export default function BillingPage() {
       }
     } finally {
       setUpgrading(false);
+    }
+  };
+
+  const handleManagePayment = async () => {
+    setPortalLoading(true);
+    setPortalError(null);
+    try {
+      const response = await fetch("/api/v1/billing/portal", {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        setPortalError(data.error ?? "Unable to open the billing portal");
+        setPortalLoading(false);
+      }
+    } catch {
+      setPortalError("Network error while opening the billing portal");
+      setPortalLoading(false);
     }
   };
 
@@ -286,9 +308,18 @@ export default function BillingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline">
-              Manage Payment Methods (Stripe Portal)
+            <Button
+              variant="outline"
+              onClick={handleManagePayment}
+              disabled={portalLoading}
+            >
+              {portalLoading
+                ? "Opening Stripe Portal..."
+                : "Manage Payment Methods (Stripe Portal)"}
             </Button>
+            {portalError && (
+              <p className="mt-2 text-sm text-destructive">{portalError}</p>
+            )}
           </CardContent>
         </Card>
       )}
