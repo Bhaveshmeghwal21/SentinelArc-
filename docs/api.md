@@ -17,7 +17,7 @@ All requests must include a valid API key in the `X-API-Key` header.
 API keys are provisioned per-client via the SentinelArc dashboard. Each key is scoped to a single client (tenant) and carries rate limit metadata.
 
 ```
-X-API-Key: sa_live_YOUR_API_KEY_HERE...
+X-API-Key: sa_live_YOUR_API_KEY_HERE
 ```
 
 ## Endpoints
